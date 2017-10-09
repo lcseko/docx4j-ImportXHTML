@@ -81,27 +81,12 @@ import org.docx4j.org.xhtmlrenderer.render.BlockBox;
 import org.docx4j.org.xhtmlrenderer.render.Box;
 import org.docx4j.org.xhtmlrenderer.render.InlineBox;
 import org.docx4j.org.xhtmlrenderer.resource.XMLResource;
-import org.docx4j.wml.Body;
-import org.docx4j.wml.CTMarkupRange;
-import org.docx4j.wml.CTSimpleField;
-import org.docx4j.wml.ContentAccessor;
+import org.docx4j.wml.*;
 import org.docx4j.wml.DocDefaults.RPrDefault;
-import org.docx4j.wml.HpsMeasure;
-import org.docx4j.wml.P;
 import org.docx4j.wml.P.Hyperlink;
-import org.docx4j.wml.PPr;
 import org.docx4j.wml.PPrBase.Ind;
 import org.docx4j.wml.PPrBase.NumPr;
 import org.docx4j.wml.PPrBase.PStyle;
-import org.docx4j.wml.R;
-import org.docx4j.wml.RFonts;
-import org.docx4j.wml.RPr;
-import org.docx4j.wml.RStyle;
-import org.docx4j.wml.Style;
-import org.docx4j.wml.Tbl;
-import org.docx4j.wml.Tc;
-import org.docx4j.wml.Text;
-import org.docx4j.wml.Tr;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -109,6 +94,8 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.css.CSSValue;
 import org.xml.sax.InputSource;
+
+import static org.docx4j.wml.STBrType.PAGE;
 
 /**
  * Convert XHTML + CSS to WordML content.  Can convert an entire document, 
@@ -878,7 +865,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
 	            */
             	// So do it this way ...
                 if (e.getNodeName().equals("div")) {
-                	
+
                 	if (divHandler!=null) {
                 		ContentAccessor ca = divHandler.enter(blockBox, this.contentContextStack.peek());
                 		if (ca!=null) {
@@ -886,7 +873,8 @@ public class XHTMLImporterImpl implements XHTMLImporter {
                 			mustPop = true;
                 		}
                 	}
-                	
+
+
                 	/* consider:
                 	 * 
                 	 *     <li><div>ListItem2</div></li>
@@ -1266,14 +1254,16 @@ public class XHTMLImporterImpl implements XHTMLImporter {
             	log.debug("Processing children of " + box.getElement().getNodeName() );
 	            switch (blockBox.getChildrenContentType()) {
 	                case BlockBox.CONTENT_BLOCK:
-	                	log.debug(".. which are BlockBox.CONTENT_BLOCK");	                	
-	                    for (Object o : ((BlockBox)box).getChildren() ) {
+	                	log.debug(".. which are BlockBox.CONTENT_BLOCK");
+	                    addPageBreakBefore(blockBox);
+						for (Object o : box.getChildren() ) {
 	                        log.debug("   processing child " + o.getClass().getName() );
 	                    	
 	                        traverse((Box)o,  box, tableProperties);                    
 	                        log.debug(".. processed child " + o.getClass().getName() );
 	                    }
-	                    break;
+						addPageBreakAfter(blockBox);
+						break;
 	                case BlockBox.CONTENT_INLINE:
 	                	
 	                	log.debug(".. which are BlockBox.CONTENT_INLINE");	                	
@@ -1388,8 +1378,32 @@ public class XHTMLImporterImpl implements XHTMLImporter {
         }
     
     }
-    
-    private static final String FIGCAPTION_SEQUENCE_ATTRIBUTE_NAME="sequence";
+
+	private void addPageBreakAfter(BlockBox box) {
+		Map<String, CSSValue> cssMap = getCascadedProperties(box.getStyle());
+
+		CSSValue pageBreakAfter = cssMap.get("page-break-after");
+		if("always".equals(pageBreakAfter.getCssText())){
+
+			Br br = Context.getWmlObjectFactory().createBr();
+			br.setType(PAGE);
+			getListForRun().getContent().add(br);
+		}
+	}
+
+	private void addPageBreakBefore(BlockBox box) {
+		Map<String, CSSValue> cssMap = getCascadedProperties(box.getStyle());
+
+		CSSValue pageBreakAfter = cssMap.get("page-break-before");
+		if("always".equals(pageBreakAfter.getCssText())){
+
+			Br br = Context.getWmlObjectFactory().createBr();
+			br.setType(PAGE);
+			getListForRun().getContent().add(br);
+		}
+	}
+
+	private static final String FIGCAPTION_SEQUENCE_ATTRIBUTE_NAME="sequence";
     private static final String FIGCAPTION_SEQUENCE_ATTRIBUTE_VALUE_DEFAULT="Figure"; 
     
     
@@ -1920,7 +1934,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
 			} else if (s.getElement().getNodeName() == null) {
         		log.debug("Null element nodename " ); 
 			} else if (s.getElement().getNodeName().equals("br") ) {
-                
+
                 R run = Context.getWmlObjectFactory().createR();
                 getListForRun().getContent().add(run);                
            		run.getContent().add(Context.getWmlObjectFactory().createBr());
