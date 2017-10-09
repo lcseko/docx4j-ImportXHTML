@@ -1563,7 +1563,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
     			|| !isHeading(blockBox)) return;
     	
     	// Its a heading; set the style
-    	String styleId = headingHandler.getStyle(blockBox.getElement().getLocalName());
+    	String styleId = headingHandler.getStyle(blockBox.getElement().getTagName());
     	
     	if (styleId!=null) {
 			PStyle pStyle = Context.getWmlObjectFactory().createPPrBasePStyle();
@@ -1576,9 +1576,9 @@ public class XHTMLImporterImpl implements XHTMLImporter {
     	
     	if (blockBox.getElement()==null) return false;
     	
-    	String elName = blockBox.getElement().getLocalName();
-    	
-    	return (("h1").equals(elName)
+    	String elName = blockBox.getElement().getTagName();
+
+		return (("h1").equals(elName)
     			|| ("h2").equals(elName)
     			|| ("h3").equals(elName)
     			|| ("h4").equals(elName)
