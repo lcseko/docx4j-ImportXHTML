@@ -27,15 +27,25 @@
  */
 package org.docx4j.convert.in.xhtml;
 
+import org.apache.commons.io.FileUtils;
 import org.docx4j.openpackaging.exceptions.Docx4JException;
-import org.docx4j.openpackaging.exceptions.InvalidFormatException;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.wml.*;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.xml.sax.SAXException;
 
 import java.util.List;
+
+import javax.xml.parsers.ParserConfigurationException;
+import java.io.File;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.core.Is.is;
 
 public class ContainerParseTest {
     private final String PNG_IMAGE_DATA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACAgMAAAAP2OW3AAAADFBMVEUDAP//AAAA/wb//AAD4Tw1AAAACXBIWXMAAAsTAAALEwEAmpwYAAAADElEQVQI12NwYNgAAAF0APHJnpmVAAAAAElFTkSuQmCC";
@@ -102,4 +112,69 @@ public class ContainerParseTest {
             }
         }
 	}
+
+    @Test
+    public void divInBackground()
+            throws Exception {
+        String name = "div_in_background";
+        List<Object> converted = convertFile(name + "" +
+                ".html");
+
+        saveDocx(name, converted);
+
+        P p1 = (P) converted.get(0);
+        assertThat(p1.getPPr().getShd().getFill(), is("ff0000"));
+        P p2 = (P) converted.get(1);
+        assertThat(p2.getPPr().getShd().getFill(), is("00ff00"));
+        P p3 = (P) converted.get(2);
+        assertThat(p3.getPPr().getShd().getFill(), is("ff0000"));
+    }
+
+    @Test
+    public void moreDivInBackground()
+            throws Exception {
+        String name = "more_div_in_background";
+        List<Object> converted = convertFile(name + "" +
+                ".html");
+
+        saveDocx(name, converted);
+
+        P p = (P) converted.get(0);
+        assertThat(p.getPPr().getShd().getFill(), is("ff0000"));
+
+        P p2 = (P) converted.get(1);
+        assertThat(p2.getPPr().getShd().getFill(), is("008000"));
+
+        P p3 = (P) converted.get(2);
+        assertThat(p3.getPPr().getShd().getFill(), is("ff0000"));
+    }
+
+    @Test
+    public void pInDiv()
+            throws Exception {
+        String name = "p_in_div";
+        List<Object> converted = convertFile(name + ".html");
+
+        saveDocx(name, converted);
+
+        P p = (P) converted.get(0);
+        assertThat(p.getPPr().getShd().getFill(), is("ff0000"));
+    }
+
+    private void saveDocx(String name, List<Object> converted) throws Docx4JException {
+        wordMLPackage.getMainDocumentPart().getContent().addAll(
+                converted);
+        File file = new File(name + ".docx");
+        wordMLPackage.save(file);
+        System.out.println("Converted file: " + file.getAbsolutePath());
+    }
+
+    private List<Object> convertFile(String inputFileName) throws URISyntaxException, Docx4JException, ParserConfigurationException, IOException, SAXException {
+        URL resource = this.getClass().getResource(inputFileName);
+        File inputFile = new File(resource.toURI());
+
+        String input = FileUtils.readFileToString(inputFile);
+
+        return convert(input);
+    }
 }

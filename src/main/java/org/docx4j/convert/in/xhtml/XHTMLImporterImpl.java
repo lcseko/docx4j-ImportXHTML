@@ -76,32 +76,20 @@ import org.docx4j.org.xhtmlrenderer.css.style.derived.LengthValue;
 import org.docx4j.org.xhtmlrenderer.docx.DocxRenderer;
 import org.docx4j.org.xhtmlrenderer.layout.Styleable;
 import org.docx4j.org.xhtmlrenderer.newtable.TableBox;
+import org.docx4j.org.xhtmlrenderer.newtable.TableCellBox;
+import org.docx4j.org.xhtmlrenderer.newtable.TableRowBox;
+import org.docx4j.org.xhtmlrenderer.newtable.TableSectionBox;
 import org.docx4j.org.xhtmlrenderer.render.AnonymousBlockBox;
 import org.docx4j.org.xhtmlrenderer.render.BlockBox;
 import org.docx4j.org.xhtmlrenderer.render.Box;
 import org.docx4j.org.xhtmlrenderer.render.InlineBox;
 import org.docx4j.org.xhtmlrenderer.resource.XMLResource;
-import org.docx4j.wml.Body;
-import org.docx4j.wml.CTMarkupRange;
-import org.docx4j.wml.CTSimpleField;
-import org.docx4j.wml.ContentAccessor;
+import org.docx4j.wml.*;
 import org.docx4j.wml.DocDefaults.RPrDefault;
-import org.docx4j.wml.HpsMeasure;
-import org.docx4j.wml.P;
 import org.docx4j.wml.P.Hyperlink;
-import org.docx4j.wml.PPr;
 import org.docx4j.wml.PPrBase.Ind;
 import org.docx4j.wml.PPrBase.NumPr;
 import org.docx4j.wml.PPrBase.PStyle;
-import org.docx4j.wml.R;
-import org.docx4j.wml.RFonts;
-import org.docx4j.wml.RPr;
-import org.docx4j.wml.RStyle;
-import org.docx4j.wml.Style;
-import org.docx4j.wml.Tbl;
-import org.docx4j.wml.Tc;
-import org.docx4j.wml.Text;
-import org.docx4j.wml.Tr;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
@@ -579,7 +567,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
     	
         renderer = getRenderer();
         
-        Document dom = XMLResource.load(reader).getDocument();        
+        Document dom = XMLResource.load(reader).getDocument();
         renderer.setDocument(dom, baseUrl);
         
         renderer.layout();
@@ -869,7 +857,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
                 
             	//Map cssMap = styleReference.getCascadedPropertiesMap(e);
                 Map<String, CSSValue> cssMap = getCascadedProperties(box.getStyle());
-            	
+
             	/* Sometimes, when it is display: inline, the following is not set:
 	            	CSSValue cssValue = (CSSValue)cssMap.get("display");
 	            	if (cssValue !=null) {
@@ -914,8 +902,10 @@ public class XHTMLImporterImpl implements XHTMLImporter {
                     	 * */ 
                 	} else {
                 		// usual case
-                    	this.getCurrentParagraph(true).setPPr(this.getPPr(blockBox, cssMap));
-                		
+						P currentParagraph = this.getCurrentParagraph(true);
+						PPr childPPr = this.getPPr(blockBox, cssMap);
+						PPr parentPPr = currentParagraph.getPPr();
+						currentParagraph.setPPr(mergePPr(parentPPr, childPPr));
                 	}
                 	
                 } else if (box.getStyle().getDisplayMine().equals("inline") ) {
@@ -1247,8 +1237,10 @@ public class XHTMLImporterImpl implements XHTMLImporter {
 	            		
 	            		log.debug("create new attachmentPoint");
 		            	P currentP = this.getCurrentParagraph(true);
-		                currentP.setPPr(this.getPPr(blockBox, cssMap));
-		                
+						PPr childPPr = this.getPPr(blockBox, cssMap);
+						PPr parentPPr = currentP.getPPr();
+						currentP.setPPr(mergePPr(parentPPr, childPPr));
+
 		                log.debug(XmlUtils.marshaltoString(currentP));
 		                
 	
@@ -1263,14 +1255,31 @@ public class XHTMLImporterImpl implements XHTMLImporter {
             // the recursive bit:
             
         	
-            	log.debug("Processing children of " + box.getElement().getNodeName() );
+				log.debug("Processing children of " + box.getElement().getNodeName() );
+				P currentParagraph = getCurrentParagraph(false);
+				PPr parentPPr;
+				if(currentParagraph!= null) {
+					parentPPr = currentParagraph.getPPr();
+				}
+				else{
+					parentPPr = null;
+				}
 	            switch (blockBox.getChildrenContentType()) {
 	                case BlockBox.CONTENT_BLOCK:
 	                	log.debug(".. which are BlockBox.CONTENT_BLOCK");	                	
-	                    for (Object o : ((BlockBox)box).getChildren() ) {
+	                    for (Object o : box.getChildren() ) {
 	                        log.debug("   processing child " + o.getClass().getName() );
-	                    	
-	                        traverse((Box)o,  box, tableProperties);                    
+							P newParagraph;
+							if(o instanceof TableRowBox || o instanceof TableSectionBox || o instanceof TableCellBox){
+								newParagraph = getCurrentParagraph(false);
+							}
+							else {
+								newParagraph = getCurrentParagraph(true);
+							}
+							if(newParagraph!= null) {
+								newParagraph.setPPr(parentPPr);
+							}
+							traverse((Box) o, box, tableProperties);
 	                        log.debug(".. processed child " + o.getClass().getName() );
 	                    }
 	                    break;
@@ -1289,7 +1298,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
 	                            	processInlineBox( (InlineBox)o);
 	                            		                            	
 	                            } else if (o instanceof BlockBox ) {
-	                            	
+
 	                                traverse((Box)o, box, tableProperties); // commenting out gets rid of unwanted extra parent elements
 	                                //contentContext = tmpContext;
 	                            } else {
@@ -1410,6 +1419,23 @@ public class XHTMLImporterImpl implements XHTMLImporter {
 		return sequenceCounters;
 	}
 
+	private PPr mergePPr(PPr parentPPr, PPr childPPr) {
+		CTShd shd = childPPr.getShd();
+		if(shd == null){
+			if(parentPPr != null && parentPPr.getShd() != null){
+				childPPr.setShd(parentPPr.getShd());
+			}
+		}
+		else {
+			String fill = shd.getFill();
+			if(fill == null){
+				if(parentPPr != null && parentPPr.getShd() != null && parentPPr.getShd().getFill() != null){
+					shd.setFill(parentPPr.getShd().getFill());
+				}
+			}
+		}
+		return childPPr;
+	}
 	/**
 	 * Set the last used numbers of SEQ fields, used in image captions.
 	 * Key is sequence name.  The default is "Figure", but you can also use
