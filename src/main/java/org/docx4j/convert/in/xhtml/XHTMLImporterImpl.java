@@ -2270,7 +2270,7 @@ public class XHTMLImporterImpl implements XHTMLImporter {
 		while (o !=null
 				&& o instanceof BlockBox 
 				&& !(o instanceof org.docx4j.org.xhtmlrenderer.newtable.TableCellBox) 
-				&& !( ((BlockBox)o).getElement()!=null && ((BlockBox)o).getElement().getLocalName().equals("li"))
+				&& !( ((BlockBox)o).getElement()!=null && "li".equals(((BlockBox)o).getElement().getLocalName()))
 				) {
 			
 			BlockBox bb = (BlockBox)o;
